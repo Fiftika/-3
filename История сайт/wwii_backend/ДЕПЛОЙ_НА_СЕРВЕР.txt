@@ -1,0 +1,450 @@
+╔══════════════════════════════════════════════════════════════════╗
+║       ДЕПЛОЙ «ФРОНТОВОГО АЛЬБОМА» НА АРЕНДОВАННЫЙ СЕРВЕР        ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Стек: Ubuntu 22.04 + Nginx + Gunicorn + Django + SQLite
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ЧТО НУЖНО ИМЕТЬ ПЕРЕД НАЧАЛОМ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Арендованный VPS-сервер с Ubuntu 22.04
+     Где арендовать (недорого):
+       - Timeweb.ru       от 130 руб/мес (Россия, быстро)
+       - Beget.ru         от 150 руб/мес
+       - DigitalOcean.com от $6/мес (нужна карта)
+       - Hetzner.com      от €4/мес (Европа)
+
+     Минимальные характеристики:
+       - 1 vCPU, 1 GB RAM — достаточно для школьного проекта
+       - 10 GB диска — хватит с запасом
+
+  2. IP-адрес сервера (выдаётся при аренде)
+     Пример: 95.142.45.10
+
+  3. Пароль root или SSH-ключ (выдаётся при аренде)
+
+  4. Программа для SSH-подключения:
+     - Windows: PuTTY (putty.org) или встроенный SSH в cmd/PowerShell
+     - Или просто Windows Terminal
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 1 — ПОДКЛЮЧЕНИЕ К СЕРВЕРУ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Открой cmd или PowerShell на своём компьютере и введи:
+
+    ssh root@95.142.45.10
+
+(замени 95.142.45.10 на IP своего сервера)
+
+Введи пароль (символы не отображаются — это нормально).
+После входа увидишь приглашение командной строки:
+    root@server:~#
+
+Если видишь такую строку — ты на сервере. Все следующие команды
+выполняются уже на СЕРВЕРЕ, не на своём компьютере.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 2 — ОБНОВЛЕНИЕ СИСТЕМЫ И УСТАНОВКА ПАКЕТОВ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+На сервере выполни по одной команде:
+
+    apt-get update
+
+    apt-get install -y python3 python3-pip python3-venv nginx
+
+Подожди — установка займёт 1–2 минуты.
+
+Проверь что Python установлен:
+    python3 --version
+    → должно вывести: Python 3.10.x (или новее)
+
+Проверь Nginx:
+    nginx -v
+    → должно вывести: nginx version: nginx/1.x.x
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 3 — ЗАГРУЗКА ФАЙЛОВ ПРОЕКТА НА СЕРВЕР
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+СПОСОБ А — через scp (с твоего компьютера, в НОВОМ окне cmd)
+─────────────────────────────────────────────────────────────
+Открой новое окно cmd на своём компьютере (не на сервере!).
+Перейди в папку «История сайт»:
+
+    cd "C:\Users\Artyom\Desktop\История сайт"
+
+Создай ZIP-архив папки wwii_backend:
+    powershell Compress-Archive wwii_backend wwii_backend.zip
+
+Загрузи архив на сервер:
+    scp wwii_backend.zip root@95.142.45.10:/home/ubuntu/
+
+Также загрузи оригинальный HTML-файл:
+    scp wwii_album.html root@95.142.45.10:/home/ubuntu/
+
+Вернись в окно с SSH (сервер) и распакуй:
+    cd /home/ubuntu
+    unzip wwii_backend.zip
+    mv wwii_album.html wwii_backend/
+
+СПОСОБ Б — через GitHub (если проект есть на GitHub)
+──────────────────────────────────────────────────────
+На сервере:
+    cd /home/ubuntu
+    git clone https://github.com/твой_логин/твой_репо.git wwii_backend
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 4 — СОЗДАНИЕ ВИРТУАЛЬНОГО ОКРУЖЕНИЯ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+На сервере:
+
+    cd /home/ubuntu/wwii_backend
+
+    python3 -m venv venv
+
+    source venv/bin/activate
+
+После активации строка приглашения изменится:
+    (venv) root@server:/home/ubuntu/wwii_backend#
+
+Установи зависимости:
+    pip install --upgrade pip
+    pip install -r requirements.txt
+
+Ожидание 2–3 минуты. Успешный результат:
+    Successfully installed Django-4.2.x gunicorn-21.x ...
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 5 — НАСТРОЙКА PRODUCTION-РЕЖИМА
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Сгенерируй секретный ключ (скопируй результат — он понадобится):
+    python3 -c "import secrets; print(secrets.token_urlsafe(50))"
+
+Пример вывода:
+    xK8mP2nQ7vR4jL1aB5eT9wY3fN6hC0iG...
+
+Установи переменные окружения (замени значения своими):
+    export DJANGO_SETTINGS_MODULE=wwii_backend.settings_prod
+    export DJANGO_SECRET_KEY="вставь_сюда_сгенерированный_ключ"
+    export ALLOWED_HOSTS="95.142.45.10"
+
+Чтобы переменные сохранялись после перезагрузки, добавь их в файл:
+    nano /home/ubuntu/wwii_backend/.env
+
+Содержимое файла .env:
+────────────────────────────────────────
+DJANGO_SETTINGS_MODULE=wwii_backend.settings_prod
+DJANGO_SECRET_KEY=вставь_сюда_сгенерированный_ключ
+ALLOWED_HOSTS=95.142.45.10
+────────────────────────────────────────
+Сохрани: Ctrl+O → Enter → Ctrl+X
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 6 — ПОДГОТОВКА DJANGO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Убедись что активировано виртуальное окружение (строка начинается с (venv))
+и переменные окружения установлены (шаг 5).
+
+    cd /home/ubuntu/wwii_backend
+
+Создай папку для логов:
+    mkdir -p logs
+
+Подготовь HTML-шаблон (копирует wwii_album.html → templates/index.html):
+    python3 setup_template.py
+
+Создай базу данных:
+    python3 manage.py migrate
+
+Собери статику (Nginx будет отдавать файлы напрямую):
+    python3 manage.py collectstatic --noinput
+
+Создай администратора:
+    python3 manage.py createsuperuser
+
+Введи логин, email (можно пропустить), пароль.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 7 — НАСТРОЙКА GUNICORN КАК СИСТЕМНОГО СЕРВИСА
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Gunicorn — это сервер, который запускает Django. Systemd следит за ним
+и перезапускает при сбоях или после перезагрузки сервера.
+
+Создай файл сервиса (скопируй целиком):
+
+    nano /etc/systemd/system/wwii.service
+
+Вставь этот текст (замени SECRET_KEY своим ключом из шага 5):
+────────────────────────────────────────────────────────────────
+[Unit]
+Description=Gunicorn — Фронтовой альбом
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/home/ubuntu/wwii_backend
+Environment="DJANGO_SETTINGS_MODULE=wwii_backend.settings_prod"
+Environment="DJANGO_SECRET_KEY=вставь_ключ_из_шага_5"
+Environment="ALLOWED_HOSTS=95.142.45.10"
+ExecStart=/home/ubuntu/wwii_backend/venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --access-logfile /home/ubuntu/wwii_backend/logs/access.log \
+    --error-logfile  /home/ubuntu/wwii_backend/logs/gunicorn.log \
+    wwii_backend.wsgi:application
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+────────────────────────────────────────────────────────────────
+Сохрани: Ctrl+O → Enter → Ctrl+X
+
+Запусти и включи автозапуск:
+    systemctl daemon-reload
+    systemctl enable wwii
+    systemctl start wwii
+
+Проверь что работает:
+    systemctl status wwii
+
+Должно быть: ● wwii.service — Active: active (running)
+
+Если ошибка — посмотри лог:
+    journalctl -u wwii -n 30
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 8 — НАСТРОЙКА NGINX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nginx принимает запросы от браузеров и перенаправляет их в Gunicorn.
+Также он сам отдаёт статические файлы (быстрее и эффективнее).
+
+Создай конфигурацию (замени 95.142.45.10 на IP своего сервера):
+
+    nano /etc/nginx/sites-available/wwii
+
+Вставь текст:
+────────────────────────────────────────────────────────────────
+server {
+    listen 80;
+    server_name 95.142.45.10;
+
+    # Статические файлы — Nginx отдаёт напрямую (без Django)
+    location /static/ {
+        alias /home/ubuntu/wwii_backend/staticfiles/;
+        expires 30d;
+    }
+
+    location /media/ {
+        alias /home/ubuntu/wwii_backend/media/;
+    }
+
+    # Всё остальное — передаём в Gunicorn
+    location / {
+        proxy_pass         http://127.0.0.1:8000;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+
+        # Таймаут для большого HTML-файла (9.5 MB)
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+
+        # Буферизация — ускоряет передачу большого файла
+        proxy_buffering    on;
+        proxy_buffer_size  16k;
+        proxy_buffers      8 64k;
+    }
+
+    # Лимит на загружаемые фото пользователей
+    client_max_body_size 10M;
+}
+────────────────────────────────────────────────────────────────
+Сохрани: Ctrl+O → Enter → Ctrl+X
+
+Включи сайт:
+    ln -s /etc/nginx/sites-available/wwii /etc/nginx/sites-enabled/
+    rm -f /etc/nginx/sites-enabled/default
+
+Проверь конфигурацию:
+    nginx -t
+
+Должно вывести: nginx: configuration file ... test is successful
+
+Перезагрузи Nginx:
+    systemctl reload nginx
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 9 — ОТКРЫТИЕ ПОРТА В FIREWALL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ufw allow OpenSSH
+    ufw allow 'Nginx HTTP'
+    ufw enable
+
+Введи y при запросе подтверждения.
+
+Проверь:
+    ufw status
+
+Должно быть:
+    OpenSSH    ALLOW
+    Nginx HTTP ALLOW
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ШАГ 10 — ПРОВЕРКА
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Открой в браузере (замени IP своим):
+    http://95.142.45.10
+
+Если сайт открылся — всё готово!
+
+Проверь панель администратора:
+    http://95.142.45.10/admin
+
+Если что-то не работает — смотри логи:
+    tail -f /home/ubuntu/wwii_backend/logs/gunicorn.log   ← ошибки Django
+    tail -f /var/log/nginx/error.log                       ← ошибки Nginx
+    systemctl status wwii                                  ← статус Gunicorn
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  УПРАВЛЕНИЕ СЕРВЕРОМ (полезные команды)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Перезапустить сайт после изменений в коде:
+    systemctl restart wwii
+
+Посмотреть кто сейчас заходит на сайт:
+    tail -f /home/ubuntu/wwii_backend/logs/access.log
+
+Посмотреть ошибки Django:
+    tail -f /home/ubuntu/wwii_backend/logs/gunicorn.log
+
+Зайти в Django-оболочку (как python manage.py shell):
+    cd /home/ubuntu/wwii_backend
+    source venv/bin/activate
+    export DJANGO_SETTINGS_MODULE=wwii_backend.settings_prod
+    python3 manage.py shell
+
+Сбросить пароль администратора:
+    python3 manage.py changepassword admin
+
+Сделать резервную копию базы данных:
+    cp /home/ubuntu/wwii_backend/db.sqlite3 \
+       /home/ubuntu/wwii_backend/db.sqlite3.backup-$(date +%Y%m%d)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ОБНОВЛЕНИЕ САЙТА (если изменил код)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Загрузи новые файлы на сервер (с твоего компьютера):
+    scp wwii_backend.zip root@95.142.45.10:/home/ubuntu/
+
+На сервере:
+    cd /home/ubuntu
+    unzip -o wwii_backend.zip
+    cd wwii_backend
+    source venv/bin/activate
+    export DJANGO_SETTINGS_MODULE=wwii_backend.settings_prod
+    pip install -r requirements.txt
+    python3 manage.py migrate
+    python3 manage.py collectstatic --noinput
+    systemctl restart wwii
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ЕСЛИ ЕСТЬ ДОМЕН (например, frontalnyalbum.ru)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. У регистратора домена создай A-запись:
+     Хост: @   →   IP: 95.142.45.10
+     Хост: www →   IP: 95.142.45.10
+   Записи применяются 1–24 часа.
+
+2. В /etc/nginx/sites-available/wwii замени строку:
+     server_name 95.142.45.10;
+   На:
+     server_name frontalnyalbum.ru www.frontalnyalbum.ru;
+
+3. В переменную ALLOWED_HOSTS добавь домен:
+     Environment="ALLOWED_HOSTS=95.142.45.10,frontalnyalbum.ru,www.frontalnyalbum.ru"
+
+4. Перезапусти:
+     systemctl daemon-reload
+     systemctl restart wwii
+     systemctl reload nginx
+
+5. Настрой HTTPS (бесплатно через Let's Encrypt):
+     apt-get install -y certbot python3-certbot-nginx
+     certbot --nginx -d frontalnyalbum.ru -d www.frontalnyalbum.ru
+   Следуй инструкциям, сертификат выдаётся автоматически.
+   Сайт станет доступен по https://frontalnyalbum.ru
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ЧАСТЫЕ ОШИБКИ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ошибка 502 Bad Gateway
+  Gunicorn не запущен или упал.
+  Проверь: systemctl status wwii
+  Лог: journalctl -u wwii -n 50
+
+Ошибка 404 /static/... не найден
+  Не выполнено collectstatic.
+  Исправь: python3 manage.py collectstatic --noinput
+
+Ошибка DisallowedHost
+  IP/домен не добавлен в ALLOWED_HOSTS.
+  Исправь переменную в /etc/systemd/system/wwii.service
+
+Пустая страница (белый экран)
+  Django вернул ошибку, но DEBUG=False скрывает детали.
+  Смотри лог: tail -50 /home/ubuntu/wwii_backend/logs/gunicorn.log
+
+Сайт недоступен сразу после настройки
+  Firewall не открыт.
+  Проверь: ufw status
+  Исправь: ufw allow 'Nginx HTTP'
+
+
+╔══════════════════════════════════════════════════════════════════╗
+║  БЫСТРАЯ ШПАРГАЛКА                                              ║
+║                                                                  ║
+║  Подключиться к серверу:                                         ║
+║    ssh root@95.142.45.10                                         ║
+║                                                                  ║
+║  Перезапустить сайт:                                             ║
+║    systemctl restart wwii                                        ║
+║                                                                  ║
+║  Смотреть ошибки:                                                ║
+║    tail -f /home/ubuntu/wwii_backend/logs/gunicorn.log           ║
+║                                                                  ║
+║  Сайт:    http://95.142.45.10                                    ║
+║  Админка: http://95.142.45.10/admin                              ║
+╚══════════════════════════════════════════════════════════════════╝
